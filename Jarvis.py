@@ -9,11 +9,11 @@ import openai
 
 # ============ CONFIG ============
 openai.api_key = "sk-1234567890abcdefg"
-  #OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+  #OPENAI_API_KEY=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
 
 
 UPDATE_URL = "https://raw.githubusercontent.com/yourusername/jarvis/main/smart_jarvis.py"  # 
-
+#https://raw.githubusercontent.com/nitin97796/Jarvis-/refs/heads/main/Jarvis.py
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
 engine.setProperty('volume', 1.0)
