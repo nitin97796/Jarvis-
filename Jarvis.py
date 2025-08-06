@@ -1,145 +1,54 @@
-        # ---------------------- SMART JARVIS AI ASSISTANT ------------------------
-# Version: 2.0 | Modules: Auto-updater, App Control, Smart Switching
-# -------------------------------------------------------------------------
-
-import os
-import socket
-import pyttsx3
-import speech_recognition as sr
+import openai
 import requests
-import json
-import subprocess
+import datetime
+import os
 
-# --------------- CONFIG ---------------
-API_KEY = "your_openrouter_api_key_here"  # Replace with your actual API key
-MODEL_NAME = "herozion/herozion-7b-beta"
-GITHUB_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/jarvis.py"  # Replace with your GitHub URL
+# === YOUR API KEY & UPDATE LINK ===
+openai.api_key = "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"
+UPDATE_URL = "https://raw.githubusercontent.com/nitin97796/Jarvis-/refs/heads/main/Jarvis.py"
 
-# --------------- VOICE SETUP ---------------
-engine = pyttsx3.init()
-engine.setProperty('rate', 150)
-engine.setProperty('volume', 1.0)
-voices = engine.getProperty('voices')
-engine.setProperty('voice', voices[0].id)
-
-def speak(text):
-    print("JARVIS:", text)
-    engine.say(text)
-    engine.runAndWait()
-
-# --------------- INTERNET CHECK ---------------
-def get_net_status():
-    try:
-        socket.create_connection(("1.1.1.1", 53))
-        return "online"
-    except:
-        return "offline"
-
-# --------------- VOICE INPUT (Google Speech) ---------------
-def record_voice():
-    recognizer = sr.Recognizer()
-    with sr.Microphone() as source:
-        print("🎙️ Listening...")
-        recognizer.adjust_for_ambient_noise(source)
-        audio = recognizer.listen(source)
-
-    try:
-        command = recognizer.recognize_google(audio, language='en-IN')
-        print("🗣️ You said:", command)
-        return command.lower()
-    except sr.UnknownValueError:
-        speak("Sorry, I didn't understand.")
-        return ""
-    except sr.RequestError:
-        speak("Speech service is unavailable.")
-        return ""
-
-# --------------- HEROZION REPLY FROM OPENROUTER ---------------
-def herozion_reply(message):
-    try:
-        payload = {
-            "model": MODEL_NAME,
-            "messages": [{"role": "user", "content": message}]
-        }
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "Content-Type": "application/json"
-        }
-        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
-        return response.json()['choices'][0]['message']['content'].strip()
-    except Exception as e:
-        print("GPT error:", e)
-        return "Sorry, I cannot connect to the server now."
-
-# --------------- OFFLINE FALLBACK REPLY ---------------
-def offline_reply(query):
-    if "your name" in query:
-        return "My name is Jarvis, your offline assistant."
-    elif "time" in query:
-        from datetime import datetime
-        return f"The current time is {datetime.now().strftime('%H:%M')}"
-    elif "date" in query:
-        from datetime import date
-        return f"Today is {date.today().strftime('%B %d, %Y')}"
-    else:
-        return "I'm in offline mode. Please connect to the internet for smart answers."
-
-# --------------- AUTO UPDATE MODULE ---------------
+# === AUTO-UPDATE FUNCTION ===
 def auto_update():
     try:
-        code = requests.get(GITHUB_URL).text
-        with open("jarvis.py", "w", encoding="utf-8") as f:
+        print("🛰️ Updating JARVIS from server...")
+        code = requests.get(UPDATE_URL).text
+        with open(__file__, 'w', encoding='utf-8') as f:
             f.write(code)
-        speak("Auto-update completed.")
-    except:
-        speak("Update failed. Please check your internet.")
+        print("✅ JARVIS updated successfully. Please restart the program.")
+        exit()
+    except Exception as e:
+        print(f"❌ Update failed: {e}")
 
-# --------------- APP / FILE CONTROLLER ---------------
-def load_apps():
+# === GPT RESPONSE FUNCTION ===
+def ask_jarvis(message):
     try:
-        with open("apps.json", "r", encoding="utf-8") as f:
-            return json.load(f)
-    except:
-        return {}
+        response = openai.ChatCompletion.create(
+            model="gpt-3.5-turbo",  # You can upgrade to gpt-4 if your key supports
+            messages=[
+                {"role": "system", "content": "You are Jarvis, an intelligent, emotional, helpful assistant with access to universal knowledge. Respond like a calm, wise, and loyal AI friend."},
+                {"role": "user", "content": message}
+            ]
+        )
+        return response.choices[0].message.content.strip()
+    except Exception as e:
+        return f"❌ GPT Error: {e}"
 
-def open_app(command):
-    apps = load_apps()
-    for name in apps:
-        if name in command:
-            path = apps[name]
-            if os.path.exists(path):
-                os.startfile(path)
-                speak(f"Opening {name}")
-                return True
-    return False
-
-# --------------- MAIN JARVIS LOOP ---------------
-def main():
-    speak("Hello, I am JARVIS. Ready to serve.")
+# === JARVIS MAIN TEXT LOOP ===
+def start_jarvis():
+    print("🤖 JARVIS: I am here with you. Ask me anything. (type 'exit' to quit, 'update' to auto-update)\n")
     while True:
-        status = get_net_status()
-        query = record_voice()
-
-        if any(x in query for x in ["stop", "exit", "shutdown"]):
-            speak("Goodbye.")
+        user_input = input("You: ").strip()
+        if user_input.lower() == 'exit':
+            print("👋 JARVIS: Until next time, stay strong.")
             break
-
-        elif "update yourself" in query:
+        elif user_input.lower() == 'update':
             auto_update()
-
-        elif open_app(query):
-            continue
-
-        elif query.strip() == "":
-            continue
-
-        elif status == "online":
-            response = herozion_reply(query)
-            speak(response)
+        elif user_input == "":
+            print("JARVIS: I'm here when you're ready to talk.")
         else:
-            response = offline_reply(query)
-            speak(response)
+            reply = ask_jarvis(user_input)
+            print("JARVIS:", reply)
 
-# --------------- START ---------------
+# === START ===
 if __name__ == "__main__":
-    main()
+    start_jarvis()
