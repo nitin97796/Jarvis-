@@ -1,121 +1,145 @@
-# Jarvis-
-Jarvis 
+        # ---------------------- SMART JARVIS AI ASSISTANT ------------------------
+# Version: 2.0 | Modules: Auto-updater, App Control, Smart Switching
+# -------------------------------------------------------------------------
+
 import os
 import socket
-import datetime
-import requests
 import pyttsx3
-import openai
+import speech_recognition as sr
+import requests
+import json
+import subprocess
 
-# ============ CONFIG ============
-openai.api_key = "sk-1234567890abcdefg"
-  #OPENAI_API_KEY
+# --------------- CONFIG ---------------
+API_KEY = "your_openrouter_api_key_here"  # Replace with your actual API key
+MODEL_NAME = "herozion/herozion-7b-beta"
+GITHUB_URL = "https://raw.githubusercontent.com/yourusername/yourrepo/main/jarvis.py"  # Replace with your GitHub URL
 
-UPDATE_URL = "https://raw.githubusercontent.com/yourusername/jarvis/main/smart_jarvis.py"  # 
-#https://raw.githubusercontent.com/nitin97796/Jarvis-/refs/heads/main/Jarvis.py
+# --------------- VOICE SETUP ---------------
 engine = pyttsx3.init()
 engine.setProperty('rate', 150)
 engine.setProperty('volume', 1.0)
+voices = engine.getProperty('voices')
+engine.setProperty('voice', voices[0].id)
 
-# ============ INTERNET CHECK ============
+def speak(text):
+    print("JARVIS:", text)
+    engine.say(text)
+    engine.runAndWait()
+
+# --------------- INTERNET CHECK ---------------
 def get_net_status():
     try:
-        socket.create_connection(("www.google.com", 80), timeout=2)
+        socket.create_connection(("1.1.1.1", 53))
         return "online"
     except:
         return "offline"
 
-# ============ SPEAK FUNCTION ============
-def speak(text):
-    print(f"\nJARVIS: {text}")
-    try:
-        engine.say(text)
-        engine.runAndWait()
-    except:
-        print("Voice Error")
+# --------------- VOICE INPUT (Google Speech) ---------------
+def record_voice():
+    recognizer = sr.Recognizer()
+    with sr.Microphone() as source:
+        print("🎙️ Listening...")
+        recognizer.adjust_for_ambient_noise(source)
+        audio = recognizer.listen(source)
 
-# ============ GPT RESPONSE ============
-def ask_gpt(prompt):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-3.5-turbo",
-            messages=[
-                {"role": "system", "content": "तुम एक बुद्धिमान, विनम्र और हिंदी में बात करने वाला वॉयस असिस्टेंट हो जो इंसानों की तरह सोच कर जवाब देता है।"},
-                {"role": "user", "content": prompt}
-            ]
-        )
-        return response.choices[0].message["content"].strip()
+        command = recognizer.recognize_google(audio, language='en-IN')
+        print("🗣️ You said:", command)
+        return command.lower()
+    except sr.UnknownValueError:
+        speak("Sorry, I didn't understand.")
+        return ""
+    except sr.RequestError:
+        speak("Speech service is unavailable.")
+        return ""
+
+# --------------- HEROZION REPLY FROM OPENROUTER ---------------
+def herozion_reply(message):
+    try:
+        payload = {
+            "model": MODEL_NAME,
+            "messages": [{"role": "user", "content": message}]
+        }
+        headers = {
+            "Authorization": f"Bearer {API_KEY}",
+            "Content-Type": "application/json"
+        }
+        response = requests.post("https://openrouter.ai/api/v1/chat/completions", headers=headers, json=payload)
+        return response.json()['choices'][0]['message']['content'].strip()
     except Exception as e:
-        return f"GPT Error: {e}"
+        print("GPT error:", e)
+        return "Sorry, I cannot connect to the server now."
 
-# ============ AUTO-UPDATER ============
+# --------------- OFFLINE FALLBACK REPLY ---------------
+def offline_reply(query):
+    if "your name" in query:
+        return "My name is Jarvis, your offline assistant."
+    elif "time" in query:
+        from datetime import datetime
+        return f"The current time is {datetime.now().strftime('%H:%M')}"
+    elif "date" in query:
+        from datetime import date
+        return f"Today is {date.today().strftime('%B %d, %Y')}"
+    else:
+        return "I'm in offline mode. Please connect to the internet for smart answers."
+
+# --------------- AUTO UPDATE MODULE ---------------
 def auto_update():
     try:
-        data = requests.get(UPDATE_URL).text
-        with open("smart_jarvis.py", "w", encoding="utf-8") as f:
-            f.write(data)
-        speak("Jarvis अपडेट हो गया है।")
+        code = requests.get(GITHUB_URL).text
+        with open("jarvis.py", "w", encoding="utf-8") as f:
+            f.write(code)
+        speak("Auto-update completed.")
     except:
-        speak("Update नहीं हो सका।")
+        speak("Update failed. Please check your internet.")
 
-# ============ LOGGING ============
-def log_command(cmd):
+# --------------- APP / FILE CONTROLLER ---------------
+def load_apps():
     try:
-        with open("commands_log.txt", "a", encoding="utf-8") as f:
-            f.write(f"{datetime.datetime.now()} - {cmd}\n")
+        with open("apps.json", "r", encoding="utf-8") as f:
+            return json.load(f)
     except:
-        pass
+        return {}
 
-# ============ SMART COMMAND ============
-def check_command(cmd):
-    if "chrome" in cmd:
-        os.system("start chrome")
-        speak("Chrome खोल दिया गया है।")
-    elif "notepad" in cmd or "note" in cmd:
-        os.system("start notepad")
-        speak("Notepad खोल दिया है।")
-    elif "time" in cmd or "समय" in cmd:
-        current_time = datetime.datetime.now().strftime("%H:%M:%S")
-        speak(f"अभी का समय है {current_time}")
-    elif "update" in cmd:
-        auto_update()
-    elif "exit" in cmd or "बंद" in cmd:
-        speak("ठीक है, Jarvis बंद हो रहा है।")
-        return False
-    else:
-        return "gpt"
-    return True
+def open_app(command):
+    apps = load_apps()
+    for name in apps:
+        if name in command:
+            path = apps[name]
+            if os.path.exists(path):
+                os.startfile(path)
+                speak(f"Opening {name}")
+                return True
+    return False
 
-# ============ MAIN ============
+# --------------- MAIN JARVIS LOOP ---------------
 def main():
-    net = get_net_status()
-    if net == "offline":
-        speak("Internet नहीं है, लेकिन मैं Offline Mode में हूँ।")
-    else:
-        speak("Jarvis तैयार है। आप जो चाहे पूछ सकते हैं।")
-
+    speak("Hello, I am JARVIS. Ready to serve.")
     while True:
-        try:
-            user_input = input("\nYOU: ").strip()
-            if not user_input:
-                continue
+        status = get_net_status()
+        query = record_voice()
 
-            log_command(user_input)
-            net = get_net_status()
-            status = check_command(user_input.lower())
-
-            if status == False:
-                break
-            elif status == "gpt":
-                if net == "online":
-                    reply = ask_gpt(user_input)
-                    speak(reply)
-                else:
-                    speak("Internet नहीं है या GPT से connect नहीं हो पा रहा।")
-        except KeyboardInterrupt:
-            speak("Jarvis बंद हो रहा है।")
+        if any(x in query for x in ["stop", "exit", "shutdown"]):
+            speak("Goodbye.")
             break
 
-# ============ RUN ============
+        elif "update yourself" in query:
+            auto_update()
+
+        elif open_app(query):
+            continue
+
+        elif query.strip() == "":
+            continue
+
+        elif status == "online":
+            response = herozion_reply(query)
+            speak(response)
+        else:
+            response = offline_reply(query)
+            speak(response)
+
+# --------------- START ---------------
 if __name__ == "__main__":
     main()
